@@ -1,112 +1,279 @@
 <?php
 
+// =============================================================================
+// GoalsController.php - Controller สำหรับจัดการข้อมูลการทำประตู (Goals)
+// =============================================================================
+// Controller นี้รับผิดชอบการจัดการ CRUD (Create, Read, Update, Delete)
+// สำหรับตาราง Goals ในฐานข้อมูล
+// =============================================================================
+
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-use DB;
+use Illuminate\Http\Request;  // Import class Request สำหรับรับข้อมูลจาก Form
+use DB;                        // Import DB Facade สำหรับ Query ฐานข้อมูล
 
 class GoalsController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
+    // =========================================================================
+    // METHOD: index()
+    // =========================================================================
+    // หน้าที่: แสดงรายการประตูทั้งหมด (READ - อ่านข้อมูล)
+    // Route: GET /goals
+    // Route Name: goals.index
+    // =========================================================================
     public function index()
     {
+        // ---------------------------------------------------------------------
+        // ขั้นตอนที่ 1: Query ข้อมูลจากตาราง Goals
+        // ---------------------------------------------------------------------
+        // DB::table('Goals') = เลือกตาราง Goals
+        // ->get() = ดึงข้อมูลทั้งหมด (SELECT * FROM Goals)
+        // ผลลัพธ์: Collection ของ Object ที่มีข้อมูลแต่ละแถว
+        // ---------------------------------------------------------------------
         $goals = DB::table('Goals')->get();
-        return view('goals.index',compact('goals'));
+
+        // ---------------------------------------------------------------------
+        // ขั้นตอนที่ 2: ส่งข้อมูลไปยัง View
+        // ---------------------------------------------------------------------
+        // view('goals.index') = โหลดไฟล์ resources/views/goals/index.blade.php
+        // compact('goals') = สร้าง array ['goals' => $goals] ส่งไปให้ View
+        // หลังจากนี้ใน View จะสามารถใช้ตัวแปร $goals ได้
+        // ---------------------------------------------------------------------
+        return view('goals.index', compact('goals'));
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
+    // =========================================================================
+    // METHOD: create()
+    // =========================================================================
+    // หน้าที่: แสดงฟอร์มสำหรับสร้างข้อมูลประตูใหม่
+    // Route: GET /goals/create
+    // Route Name: goals.create
+    // =========================================================================
     public function create()
     {
+        // ---------------------------------------------------------------------
+        // ขั้นตอนที่ 1: ดึงข้อมูล Matches สำหรับ Dropdown
+        // ---------------------------------------------------------------------
+        // ต้องดึง Matches มาเพราะ Goals มี Foreign Key ชี้ไปที่ Matches
+        // ผู้ใช้ต้องเลือกว่าประตูนี้เกิดขึ้นในแมทช์ไหน
+        // ---------------------------------------------------------------------
         $matches = DB::table('Matches')->get();
+
+        // ---------------------------------------------------------------------
+        // ขั้นตอนที่ 2: ดึงข้อมูล Players สำหรับ Dropdown
+        // ---------------------------------------------------------------------
+        // ต้องดึง Players มาเพราะ Goals มี Foreign Key ชี้ไปที่ Players
+        // ผู้ใช้ต้องเลือกว่านักเตะคนไหนเป็นคนทำประตู
+        // ---------------------------------------------------------------------
         $players = DB::table('Players')->get();
+
+        // ---------------------------------------------------------------------
+        // ขั้นตอนที่ 3: ส่งข้อมูลไปยัง View
+        // ---------------------------------------------------------------------
+        // view('goals.create') = โหลดไฟล์ resources/views/goals/create.blade.php
+        // compact('matches', 'players') = ส่งทั้ง 2 ตัวแปรไปให้ View
+        // ---------------------------------------------------------------------
         return view('goals.create', compact('matches', 'players'));
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
+    // =========================================================================
+    // METHOD: store()
+    // =========================================================================
+    // หน้าที่: บันทึกข้อมูลประตูใหม่ลงฐานข้อมูล (CREATE - สร้างข้อมูล)
+    // Route: POST /goals
+    // Route Name: goals.store
+    // Parameter: $request - ข้อมูลที่ส่งมาจาก Form
+    // =========================================================================
     public function store(Request $request)
     {
+        // ---------------------------------------------------------------------
+        // ขั้นตอนที่ 1: Validate ตรวจสอบข้อมูล
+        // ---------------------------------------------------------------------
+        // 'required' = ต้องกรอกข้อมูล ห้ามเป็นค่าว่าง
+        // ถ้า Validation ไม่ผ่าน จะ redirect กลับหน้า Form พร้อมแสดง Error
+        // ---------------------------------------------------------------------
         $request->validate([
-            'goal_id' => 'required',
-            'match_id' => 'required',
-            'player_id' => 'required',
-            'goal_time' => 'required',
-            'is_penalty' => 'required',
-        ]);
-        try{
-        DB::table('Goals')->insert([
-            'goal_id' => $request->goal_id,
-            'match_id' => $request->match_id,
-            'player_id' =>  $request->player_id,
-            'goal_time' =>  $request->goal_time,
-            'is_penalty' =>  $request->is_penalty,
+            'goal_id' => 'required',       // รหัสประตู - ต้องกรอก
+            'match_id' => 'required',      // รหัสแมทช์ - ต้องกรอก
+            'player_id' => 'required',     // รหัสนักเตะ - ต้องกรอก
+            'goal_time' => 'required',     // เวลาที่ทำประตู - ต้องกรอก
+            'is_penalty' => 'required',    // เป็นลูกโทษหรือไม่ - ต้องกรอก
         ]);
 
-        return redirect()->route('goals.index')->with('success','Goals create successfully.');
-    } catch (\Exception $e) {
-        return redirect()->route('goals.index')->with('failed','Failed to create goals.');
-    }
+        // ---------------------------------------------------------------------
+        // ขั้นตอนที่ 2: ลอง Insert ข้อมูลลงฐานข้อมูล
+        // ---------------------------------------------------------------------
+        // ใช้ try-catch เพื่อดักจับ Error เช่น Primary Key ซ้ำ
+        // ---------------------------------------------------------------------
+        try {
+            // -----------------------------------------------------------------
+            // Insert ข้อมูลลงตาราง Goals
+            // -----------------------------------------------------------------
+            // DB::table('Goals')->insert([...]) = INSERT INTO Goals VALUES(...)
+            // $request->goal_id = ค่าที่ส่งมาจาก input name="goal_id"
+            // -----------------------------------------------------------------
+            DB::table('Goals')->insert([
+                'goal_id' => $request->goal_id,       // รับค่า goal_id จาก Form
+                'match_id' => $request->match_id,     // รับค่า match_id จาก Form
+                'player_id' => $request->player_id,  // รับค่า player_id จาก Form
+                'goal_time' => $request->goal_time,  // รับค่า goal_time จาก Form
+                'is_penalty' => $request->is_penalty,// รับค่า is_penalty จาก Form
+            ]);
+
+            // -----------------------------------------------------------------
+            // ขั้นตอนที่ 3: Redirect กลับหน้า Index พร้อม Flash Message สำเร็จ
+            // -----------------------------------------------------------------
+            // redirect()->route('goals.index') = กลับไปหน้า /goals
+            // ->with('success', '...') = ส่ง Flash Message ไปแสดง
+            // -----------------------------------------------------------------
+            return redirect()->route('goals.index')->with('success', 'Goals create successfully.');
+
+        } catch (\Exception $e) {
+            // -----------------------------------------------------------------
+            // ถ้าเกิด Error (เช่น Primary Key ซ้ำ)
+            // -----------------------------------------------------------------
+            // redirect กลับหน้า Index พร้อม Flash Message แจ้งล้มเหลว
+            // -----------------------------------------------------------------
+            return redirect()->route('goals.index')->with('failed', 'Failed to create goals.');
+        }
     }
 
-    /**
-     * Display the specified resource.
-     */
+    // =========================================================================
+    // METHOD: show()
+    // =========================================================================
+    // หน้าที่: แสดงรายละเอียดประตูเดียว
+    // Route: GET /goals/{id}
+    // Route Name: goals.show
+    // หมายเหตุ: ยังไม่ได้ Implement
+    // =========================================================================
     public function show(string $id)
     {
-        //
+        // ยังไม่ได้ใช้งาน
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
+    // =========================================================================
+    // METHOD: edit()
+    // =========================================================================
+    // หน้าที่: แสดงฟอร์มสำหรับแก้ไขข้อมูลประตู
+    // Route: GET /goals/{id}/edit
+    // Route Name: goals.edit
+    // Parameter: $id - รหัสประตูที่ต้องการแก้ไข
+    // =========================================================================
     public function edit(string $id)
     {
-        $goals = DB::table('Goals')->where('goal_id',$id)->get();
+        // ---------------------------------------------------------------------
+        // ขั้นตอนที่ 1: ดึงข้อมูลประตูที่ต้องการแก้ไข
+        // ---------------------------------------------------------------------
+        // ->where('goal_id', $id) = WHERE goal_id = $id
+        // ->get() = ดึงข้อมูล (ได้ Collection ที่มี 1 รายการ)
+        // ---------------------------------------------------------------------
+        $goals = DB::table('Goals')->where('goal_id', $id)->get();
+
+        // ---------------------------------------------------------------------
+        // ขั้นตอนที่ 2: ดึงข้อมูล Matches และ Players สำหรับ Dropdown
+        // ---------------------------------------------------------------------
+        // เหมือนกับ create() เพื่อให้ผู้ใช้เลือกเปลี่ยน match หรือ player ได้
+        // ---------------------------------------------------------------------
         $matches = DB::table('Matches')->get();
         $players = DB::table('Players')->get();
+
+        // ---------------------------------------------------------------------
+        // ขั้นตอนที่ 3: ส่งข้อมูลไปยัง View
+        // ---------------------------------------------------------------------
+        // view('goals.edit') = โหลดไฟล์ resources/views/goals/edit.blade.php
+        // ส่งทั้ง 3 ตัวแปร: goals (ข้อมูลเดิม), matches, players
+        // ---------------------------------------------------------------------
         return view('goals.edit', compact('goals', 'matches', 'players'));
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
+    // =========================================================================
+    // METHOD: update()
+    // =========================================================================
+    // หน้าที่: อัปเดตข้อมูลประตูในฐานข้อมูล (UPDATE - แก้ไขข้อมูล)
+    // Route: PUT /goals/{id}
+    // Route Name: goals.update
+    // Parameters:
+    //   - $request: ข้อมูลที่ส่งมาจาก Form
+    //   - $id: รหัสประตูที่ต้องการแก้ไข
+    // =========================================================================
     public function update(Request $request, string $id)
     {
+        // ---------------------------------------------------------------------
+        // ขั้นตอนที่ 1: Validate ตรวจสอบข้อมูล
+        // ---------------------------------------------------------------------
+        // ไม่ต้อง validate goal_id เพราะเป็น Primary Key ที่แก้ไขไม่ได้
+        // ---------------------------------------------------------------------
         $request->validate([
-            'match_id' => 'required',
-            'player_id' => 'required',
-            'goal_time' => 'required',
-            'is_penalty' => 'required',
-        ]);
-        try{
-        DB::table('Goals')->where('goal_id',$id)->update([
-            'match_id' => $request->match_id,
-            'player_id' =>  $request->player_id,
-            'goal_time' =>  $request->goal_time,
-            'is_penalty' =>  $request->is_penalty,
+            'match_id' => 'required',      // รหัสแมทช์ - ต้องกรอก
+            'player_id' => 'required',     // รหัสนักเตะ - ต้องกรอก
+            'goal_time' => 'required',     // เวลา - ต้องกรอก
+            'is_penalty' => 'required',    // ลูกโทษ - ต้องกรอก
         ]);
 
-        return redirect()->route('goals.index')->with('success','Goals update successfully.');
-    } catch (\Exception $e) {
-        return redirect()->route('goals.index')->with('failedr','An failed occurred while updating.');
-    }
+        // ---------------------------------------------------------------------
+        // ขั้นตอนที่ 2: ลอง Update ข้อมูลในฐานข้อมูล
+        // ---------------------------------------------------------------------
+        try {
+            // -----------------------------------------------------------------
+            // Update ข้อมูลในตาราง Goals
+            // -----------------------------------------------------------------
+            // ->where('goal_id', $id) = หา Record ที่ goal_id ตรงกับ $id
+            // ->update([...]) = UPDATE Goals SET ... WHERE goal_id = $id
+            // -----------------------------------------------------------------
+            DB::table('Goals')->where('goal_id', $id)->update([
+                'match_id' => $request->match_id,     // อัปเดต match_id
+                'player_id' => $request->player_id,  // อัปเดต player_id
+                'goal_time' => $request->goal_time,  // อัปเดต goal_time
+                'is_penalty' => $request->is_penalty,// อัปเดต is_penalty
+            ]);
+
+            // -----------------------------------------------------------------
+            // ขั้นตอนที่ 3: Redirect กลับหน้า Index พร้อม Flash Message สำเร็จ
+            // -----------------------------------------------------------------
+            return redirect()->route('goals.index')->with('success', 'Goals update successfully.');
+
+        } catch (\Exception $e) {
+            // -----------------------------------------------------------------
+            // ถ้าเกิด Error (เช่น Foreign Key ไม่ถูกต้อง)
+            // -----------------------------------------------------------------
+            return redirect()->route('goals.index')->with('failedr', 'An failed occurred while updating.');
+        }
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
+    // =========================================================================
+    // METHOD: destroy()
+    // =========================================================================
+    // หน้าที่: ลบข้อมูลประตูจากฐานข้อมูล (DELETE - ลบข้อมูล)
+    // Route: DELETE /goals/{id}
+    // Route Name: goals.destroy
+    // Parameter: $id - รหัสประตูที่ต้องการลบ
+    // =========================================================================
     public function destroy(string $id)
     {
-        try{
-        DB::table('Goals')->where('goal_id',$id)->delete();
-        return redirect()->route('goals.index')->with('success','Goals delete successfully.');
-        }catch(\Exception $e){
-            return redirect()->route('goals.index')->with('failed','Failed to delete goals.');
+        // ---------------------------------------------------------------------
+        // ลอง Delete ข้อมูลจากฐานข้อมูล
+        // ---------------------------------------------------------------------
+        try {
+            // -----------------------------------------------------------------
+            // Delete ข้อมูลจากตาราง Goals
+            // -----------------------------------------------------------------
+            // ->where('goal_id', $id) = หา Record ที่ goal_id ตรงกับ $id
+            // ->delete() = DELETE FROM Goals WHERE goal_id = $id
+            // -----------------------------------------------------------------
+            DB::table('Goals')->where('goal_id', $id)->delete();
+
+            // -----------------------------------------------------------------
+            // Redirect กลับหน้า Index พร้อม Flash Message สำเร็จ
+            // -----------------------------------------------------------------
+            return redirect()->route('goals.index')->with('success', 'Goals delete successfully.');
+
+        } catch (\Exception $e) {
+            // -----------------------------------------------------------------
+            // ถ้าเกิด Error (เช่น Foreign Key Constraint)
+            // -----------------------------------------------------------------
+            // บาง Record อาจลบไม่ได้ถ้ามีตารางอื่นอ้างอิงอยู่
+            // -----------------------------------------------------------------
+            return redirect()->route('goals.index')->with('failed', 'Failed to delete goals.');
+        }
     }
-}
 }
