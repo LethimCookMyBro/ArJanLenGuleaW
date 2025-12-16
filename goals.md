@@ -255,15 +255,21 @@ class GoalsController extends Controller
                 <td>{{ $go->goal_time }}</td>
                 <td>{{ $go->is_penalty }}</td>
                 <td>
-                    {{-- ปุ่มแก้ไข --}}
+                    {{-- =============== ปุ่มแก้ไข =============== --}}
+                    {{-- route('goals.edit', $go->goal_id) สร้าง URL เป็น /goals/5/edit --}}
+                    {{-- เมื่อคลิก จะเรียก GoalsController@edit(5) --}}
+                    {{-- Controller จะดึงข้อมูล goal_id=5 แล้วส่งไป edit.blade.php --}}
                     <a href="{{ route('goals.edit', $go->goal_id) }}">
                         <button class="btn btn-warning">แก้ไข</button>
                     </a>
 
-                    {{-- ฟอร์มลบ --}}
+                    {{-- =============== ปุ่มลบ =============== --}}
+                    {{-- ต้องใช้ Form เพราะการลบเป็น DELETE Request --}}
+                    {{-- action ชี้ไป /goals/5 พร้อม method DELETE --}}
+                    {{-- เมื่อกดลบ จะเรียก GoalsController@destroy(5) --}}
                     <form action="{{ route('goals.destroy', $go->goal_id) }}" method="POST">
-                        @csrf                 {{-- Token ป้องกัน CSRF Attack --}}
-                        @method('DELETE')     {{-- บอก Laravel ว่าเป็น DELETE --}}
+                        @csrf                 {{-- Token ป้องกัน CSRF Attack (จำเป็น) --}}
+                        @method('DELETE')     {{-- บอก Laravel ว่าเป็น DELETE (HTML รองรับแค่ GET/POST) --}}
                         <button class="btn btn-danger">ลบ</button>
                     </form>
                 </td>
@@ -274,6 +280,81 @@ class GoalsController extends Controller
 
 @endsection  {{-- จบ Section --}}
 ```
+
+---
+
+### 🔄 Flow ปุ่มแก้ไข (ละเอียด)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          FLOW ปุ่มแก้ไข                                      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│   1. User คลิกปุ่ม "แก้ไข" ที่แถว goal_id = 5                                │
+│      ↓                                                                      │
+│   2. <a href="{{ route('goals.edit', 5) }}">                                │
+│      สร้าง URL: /goals/5/edit                                               │
+│      ↓                                                                      │
+│   3. Browser ส่ง GET Request ไป /goals/5/edit                               │
+│      ↓                                                                      │
+│   4. web.php จับ Route → เรียก GoalsController@edit(5)                      │
+│      ↓                                                                      │
+│   5. Controller ดึงข้อมูล:                                                   │
+│      $goals = DB::table('Goals')->where('goal_id', 5)->get();               │
+│      ↓                                                                      │
+│   6. Controller ส่งไป View:                                                  │
+│      return view('goals.edit', compact('goals', 'matches', 'players'));     │
+│      ↓                                                                      │
+│   7. edit.blade.php แสดงฟอร์มพร้อมค่าเดิม                                    │
+│      <input value="{{ $go->goal_time }}">                                   │
+│      ↓                                                                      │
+│   8. User แก้ไขข้อมูล แล้วกดปุ่ม "บันทึก"                                     │
+│      ↓                                                                      │
+│   9. Form ส่ง PUT Request ไป /goals/5                                       │
+│      <form action="{{ route('goals.update', 5) }}" method="POST">           │
+│      @method('PUT')                                                         │
+│      ↓                                                                      │
+│   10. web.php จับ Route → เรียก GoalsController@update(5)                   │
+│       ↓                                                                     │
+│   11. Controller อัปเดตข้อมูล:                                               │
+│       DB::table('Goals')->where('goal_id', 5)->update([...]);               │
+│       ↓                                                                     │
+│   12. Controller redirect กลับหน้า index พร้อม Flash Message                 │
+│       return redirect()->route('goals.index')->with('success', '...');      │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 🗑️ Flow ปุ่มลบ (ละเอียด)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           FLOW ปุ่มลบ                                        │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│   1. User คลิกปุ่ม "ลบ" ที่แถว goal_id = 5                                   │
+│      ↓                                                                      │
+│   2. Form ส่ง POST Request พร้อม _method=DELETE ไป /goals/5                 │
+│      <form action="/goals/5" method="POST">                                 │
+│      <input name="_method" value="DELETE">  ← จาก @method('DELETE')         │
+│      <input name="_token" value="xxx">      ← จาก @csrf                     │
+│      ↓                                                                      │
+│   3. Laravel อ่าน _method แล้วเข้าใจว่าเป็น DELETE Request                   │
+│      ↓                                                                      │
+│   4. web.php จับ Route → เรียก GoalsController@destroy(5)                   │
+│      ↓                                                                      │
+│   5. Controller ลบข้อมูล:                                                    │
+│      DB::table('Goals')->where('goal_id', 5)->delete();                     │
+│      ↓                                                                      │
+│   6. Controller redirect กลับหน้า index พร้อม Flash Message                 │
+│      return redirect()->route('goals.index')->with('success', 'ลบสำเร็จ');  │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
 
 ### 3.3 create.blade.php (หน้าเพิ่มข้อมูล)
 
